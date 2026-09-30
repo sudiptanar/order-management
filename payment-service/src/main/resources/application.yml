@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: payment-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paymentdb}
+    username: ${SPRING_DATASOURCE_USERNAME:payment_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:payment_pass}
+    hikari:
+      maximum-pool-size: 10
+      pool-name: payment-service-pool
+
+  jpa:
+    # Flyway owns the schema. Hibernate must never touch it.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 120000
+
+    consumer:
+      group-id: payment-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # ErrorHandlingDeserializer wraps the real one so a malformed payload surfaces as a failed
+      # record the error handler can dead-letter, instead of an exception that kills the container
+      # and re-reads the same bad message forever.
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.oms.common.events
+
+    listener:
+      ack-mode: record
+      concurrency: 3
+      missing-topics-fatal: false
+
+server:
+  port: 8083
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+oms:
+  outbox:
+    poll-interval-ms: 500
+    batch-size: 50
+    max-attempts: 10
+  kafka:
+    retry:
+      max-attempts: 3
+      initial-interval-ms: 1000
+      multiplier: 2.0
+      max-interval-ms: 10000
+    topic:
+      partitions: 3
+      replicas: 1
+  payment:
+    # Orders above this total are declined, which is the easiest way to trigger compensation.
+    auto-decline-above: 10000
+  simulation:
+    # This customer id throws a retryable exception: exercises retries and the dead-letter topic.
+    failing-customer-id: CUST-BOOM
+
+logging:
+  level:
+    com.oms: INFO
+    org.apache.kafka.clients.consumer.internals: WARN
+    org.apache.kafka.clients.NetworkClient: ERROR

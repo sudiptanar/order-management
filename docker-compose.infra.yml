@@ -1,0 +1,29 @@
+# Infrastructure only - use this while developing services from your IDE.
+#   docker compose -f docker-compose.infra.yml up -d
+# Services then connect to localhost:5432 and localhost:9092 (the defaults in application.yml).
+name: order-management-infra
+
+services:
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+  kafka:
+    extends:
+      file: docker-compose.yml
+      service: kafka
+  kafka-ui:
+    extends:
+      file: docker-compose.yml
+      service: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  kafkadata:
+
+networks:
+  oms:
+    driver: bridge
