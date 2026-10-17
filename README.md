@@ -102,6 +102,7 @@ docker compose up -d --build
 
 The first build compiles all four services inside containers and takes several minutes. Then:
 
+- **Dashboard (React UI): http://localhost:3000**
 - Kafka UI: http://localhost:8080
 - order-service: http://localhost:8081/actuator/health
 - inventory-service: http://localhost:8082/api/inventory
@@ -129,6 +130,35 @@ mvn -pl notification-service spring-boot:run
 The defaults in each `application.yml` point at `localhost:5432` and `localhost:9092`, so no
 configuration is needed. Services create their own topics on startup and can be started in any
 order.
+
+### Dashboard (React UI)
+
+`frontend/` is a Vite + React + TypeScript app that covers every endpoint the services expose.
+With Option B running, start it in dev mode (Node 18+):
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
+```
+
+The dev server proxies `/api/orders` and `/api/ops` to `:8081`, `/api/inventory` to `:8082`,
+`/api/payments` to `:8083` and `/api/notifications` to `:8084`, so the browser stays same-origin and
+no service needs CORS. Override a target with `ORDER_SERVICE_URL`, `INVENTORY_SERVICE_URL`,
+`PAYMENT_SERVICE_URL` or `NOTIFICATION_SERVICE_URL`. In Docker the same routing lives in
+`frontend/nginx.conf`.
+
+| Page | What it does |
+| --- | --- |
+| **Dashboard** | KPIs, sagas by state, service health, alerts for stuck sagas, DLT backlog and `COMPENSATION_FAILED` |
+| **Place order** | Build an order from live stock, or one-click the demo scenarios; predicts declines, rejections and dead-letters before you submit |
+| **Orders & sagas** | Live list, filter by saga state / in-flight / stuck, search by order, customer or product |
+| **Order detail** | The saga state machine with the path taken highlighted, plus a cross-service trace: reservation, payment, compensations and notifications, each as reported by the service that owns it |
+| **Inventory** | Stock levels (available vs reserved), set stock, add products, failure simulator, reservation lookup |
+| **Payments** / **Notifications** | Everything each participant recorded, filterable |
+| **Operations** | DLT depths, peek at dead letters with their exceptions, replay, outbox health |
+
+The order detail page polls every 1.5s while the saga is in flight, so you can watch it move.
 
 ### Smoke test
 

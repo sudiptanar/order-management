@@ -147,6 +147,21 @@ services:
         condition: service_healthy
     networks: [oms]
 
+  frontend:
+    # React dashboard. nginx serves the build and proxies /api/* to each service by compose
+    # name, so the browser stays same-origin and the services need no CORS config.
+    build:
+      context: ./frontend
+    container_name: oms-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - order-service
+      - inventory-service
+      - payment-service
+      - notification-service
+    networks: [oms]
+
 volumes:
   pgdata:
   kafkadata:
